@@ -19,9 +19,8 @@ def load_table() -> dict[str, UpstreamEntry]:
     )
 
 
-def write_workflows(root: Path, name: str) -> None:
+def write_workflows(root: Path, name: str, entry: UpstreamEntry) -> None:
     """Writes the update and the release workflow of `name` into the repo at `root`."""
-    entry = load_table()[name]
     values = {
         "NAME": name,
         "DIR": entry.dir,

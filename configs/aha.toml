@@ -34,6 +34,9 @@ echo "$html" | grep -q '&lt;plain&gt;' || fail "HTML escapes missing: $html"
 pass "converts ANSI colors and escapes HTML"
 '''
 
+[upstream_tags]
+pattern = '^[0-9]+(\.[0-9]+)+$'
+
 [[vendor]]
 dir = "aha"
 url = "https://github.com/theZiz/aha.git"

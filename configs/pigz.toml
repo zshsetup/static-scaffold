@@ -53,6 +53,9 @@ printf 'pmg\n' | "$BIN" -c | gzip -dc | grep -q '^pmg$' || fail "gzip cannot rea
 pass "output readable by gzip"
 '''
 
+[upstream_tags]
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+
 [[vendor]]
 dir = "pigz"
 url = "https://github.com/madler/pigz.git"

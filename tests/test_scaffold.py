@@ -16,6 +16,7 @@ from static_scaffold.scaffold import (
     run,
     scaffold,
 )
+from static_scaffold.upstream import load_table
 
 if TYPE_CHECKING:
     from static_scaffold.models import Config
@@ -141,7 +142,42 @@ def test_existing_vendor_checkouts_and_repos_are_kept(
     (root / ".gitmodules").write_text("")
     (root / ".gitignore").write_text("build-static/\n")
 
-    scaffold(load_config(CONFIGS / "aha.toml"), tmp_path, "zshsetup")
+    config = load_config(CONFIGS / "aha.toml")
+    config.upstream_tags = None
+
+    scaffold(config, tmp_path, "zshsetup")
 
     assert not any(call[:2] in (["git", "clone"], ["git", "init"]) for call in calls)
+    assert not (root / ".github/workflows/upstream-update.yml").exists()
     assert (root / ".gitignore").read_text() == "build-static/\n"
+
+
+def test_new_writes_the_upstream_workflows_from_the_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def record(*unused_args: object, **unused_kwargs: object) -> int:
+        return 0
+
+    monkeypatch.setattr(scaffold_module, "run", record)
+    monkeypatch.chdir(tmp_path)
+    root = tmp_path / "tmux-static"
+    root.mkdir()
+    (root / ".gitmodules").write_text("")
+    (root / ".gitignore").write_text("")
+
+    scaffold(load_config(CONFIGS / "tmux.toml"), tmp_path, "zshsetup")
+
+    update = (root / ".github/workflows/upstream-update.yml").read_text()
+    assert "URL: https://github.com/tmux/tmux.git" in update
+    assert "PATTERN: '^[0-9]+\\.[0-9]+[a-z]?$'" in update
+
+
+def test_configs_and_the_upstream_table_agree() -> None:
+    table = load_table()
+
+    for path in CONFIGS.glob("*.toml"):
+        config = load_config(path)
+        assert config.upstream_tags is not None
+        assert table[config.name].pattern == config.upstream_tags.pattern
+        assert table[config.name].release_sed == config.upstream_tags.release_sed
+        assert table[config.name].url == config.vendor[0].url

@@ -53,6 +53,9 @@ out="$("$BIN" :memory: "create virtual table f using fts5 (x); insert into f val
 pass "JSON and FTS5 are built in"
 '''
 
+[upstream_tags]
+pattern = '^version-[0-9]+(\.[0-9]+)+$'
+
 [[vendor]]
 dir = "sqlite"
 url = "https://github.com/sqlite/sqlite.git"

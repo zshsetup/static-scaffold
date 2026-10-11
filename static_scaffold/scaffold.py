@@ -10,7 +10,8 @@ from pathlib import Path
 
 import msgspec
 
-from static_scaffold.models import Config
+from static_scaffold.models import Config, UpstreamEntry
+from static_scaffold.upstream import write_workflows
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 
@@ -229,6 +230,15 @@ def scaffold(config: Config, output: Path, org: str) -> Path:
     }
     for name, text in files.items():
         (root / name).write_text(text)
+    if config.upstream_tags is not None:
+        main = config.vendor[0]
+        entry = UpstreamEntry(
+            dir=main.dir,
+            url=main.url,
+            pattern=config.upstream_tags.pattern,
+            release_sed=config.upstream_tags.release_sed,
+        )
+        write_workflows(root, config.name, entry)
     return root
 
 

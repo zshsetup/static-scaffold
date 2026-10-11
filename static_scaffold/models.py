@@ -23,6 +23,15 @@ class Project(msgspec.Struct):
     license: str
 
 
+class Upstream(msgspec.Struct):
+    """Stores how to look for new upstream versions of the main vendored project."""
+
+    pattern: str
+    """Extended regular expression of the tags that count as stable releases."""
+    release_sed: str = ""
+    """The sed script that turns an upstream tag into the release tag of the repo."""
+
+
 class Config(msgspec.Struct):
     """Stores the description of a `-static` repo."""
 
@@ -46,6 +55,8 @@ class Config(msgspec.Struct):
     ncurses: bool = False
     macos_only: bool = False
     """Whether the project only builds on macOS, which drops the Linux jobs."""
+    upstream_tags: Upstream | None = None
+    """Without it, the repo gets no workflows that follow upstream releases."""
 
 
 class UpstreamEntry(msgspec.Struct):

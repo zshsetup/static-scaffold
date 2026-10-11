@@ -74,6 +74,9 @@ pass "finds the runtime files"
 '''
 ncurses = true
 
+[upstream_tags]
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+
 [[vendor]]
 dir = "vim"
 url = "https://github.com/vim/vim.git"

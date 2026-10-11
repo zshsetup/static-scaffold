@@ -30,13 +30,16 @@ uv run python -m static_scaffold new configs/tmux.toml --output ~/repos
 The repo is created in `~/repos/tmux-static` with the submodules cloned. Review it, then publish
 it with `gh repo create zshsetup/tmux-static --public --source . --push`.
 
-Write the workflows that follow upstream releases into a checkout of a `-static` repo:
+`new` also writes the workflows that open a pull request when upstream publishes a new release,
+using the `[upstream_tags]` table of the config. To rewrite them in an existing checkout, e.g. after
+a change of the templates, run:
 
 ```shell
 uv run python -m static_scaffold upstream ~/repos/tmux-static tmux
 ```
 
-The projects and their tag patterns are listed in `static_scaffold/upstream.toml`. The workflows
+The tag patterns of all repos, also those without a config, are listed in
+`static_scaffold/upstream.toml`. The workflows
 need an `UPDATE_TOKEN` secret, a token of a user that may push to the repo and create releases,
 because pull requests and releases of the default token start no workflows.
 

@@ -8,7 +8,7 @@ from typing import Annotated
 import doctyper
 
 from static_scaffold.scaffold import load_config, scaffold, write_summary
-from static_scaffold.upstream import write_workflows
+from static_scaffold.upstream import load_table, write_workflows
 
 
 def new(
@@ -24,5 +24,5 @@ def upstream(
     root: Annotated[Path, doctyper.Argument(help="Checkout of the `-static` repo.")],
     name: Annotated[str, doctyper.Argument(help="Name of the project, e.g. tmux.")],
 ) -> None:
-    """Writes the workflows that open a pull request when upstream has a new release."""
-    write_workflows(root, name)
+    """Rewrites the upstream workflows of an existing repo, e.g. after a change of the templates."""
+    write_workflows(root, name, load_table()[name])

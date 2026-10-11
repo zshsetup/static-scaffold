@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def test_workflows_get_the_pattern_and_release_tag_rewrite(tmp_path: Path) -> None:
-    write_workflows(tmp_path, "screen")
+    write_workflows(tmp_path, "screen", load_table()["screen"])
 
     update = (tmp_path / ".github/workflows/upstream-update.yml").read_text()
     release = (tmp_path / ".github/workflows/upstream-release.yml").read_text()
@@ -35,4 +35,4 @@ def test_every_table_entry_has_a_pattern_that_excludes_pre_releases() -> None:
 
 def test_unknown_project_raises(tmp_path: Path) -> None:
     with pytest.raises(KeyError):
-        write_workflows(tmp_path, "no-such-project")
+        write_workflows(tmp_path, "no-such-project", load_table()["no-such-project"])

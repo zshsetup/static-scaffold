@@ -44,6 +44,9 @@ pass "usage"
 pass "themes"
 '''
 
+[upstream_tags]
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+
 [[vendor]]
 dir = "btop"
 url = "https://github.com/aristocratos/btop.git"

@@ -58,6 +58,9 @@ out="$(head -c 4096 /dev/zero | "$BIN" -n -s 4096 2>&1 >/dev/null | tail -n 1)"
 pass "shows the progress"
 '''
 
+[upstream_tags]
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+
 [[vendor]]
 dir = "pv"
 url = "https://github.com/a-j-wood/pv.git"

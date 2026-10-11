@@ -1,0 +1,105 @@
+name = "vim"
+bin = "vim"
+description = "Static build of Vim and xxd with ncurses linked in"
+upstream = "[Vim](https://www.vim.org/) and its `xxd` hex dumper, with ncurses linked in statically"
+tag = "v9.2.1172"
+license_short = "the Vim license (vim) and X11-MIT or GPL-2.0 at your choice (xxd)"
+extra = '''
+
+Common terminal descriptions (xterm, xterm-256color, screen, screen-256color, tmux, tmux-256color,
+linux, vt100, vt220, rxvt, alacritty, kitty, foot, wezterm, ...) are compiled into ncurses, so vim
+works even on systems without a terminfo database. The system database is still used first, from
+`/etc/terminfo`, `/lib/terminfo`, `/usr/share/terminfo`, and `/usr/lib/terminfo`, or from
+`$TERMINFO`, `$TERMINFO_DIRS`, and `~/.terminfo`.
+
+The build has the huge feature set without a GUI, X11, and scripting interpreters (Python, Perl,
+Ruby, Lua, Tcl), and without translations. Vim finds its runtime files, which the archive has in
+`share/vim`, through `$VIM`, e.g. `VIM=<prefix>/share/vim`, or at `/usr/local/share/vim`.
+'''
+outputs = '''
+- `dist/bin/vim`, `dist/bin/xxd`: the binaries
+- `dist/share/vim`: the runtime files (syntax, plugins, help, ...)
+- `dist/share/man`: the man pages'''
+build = '''
+
+echo ">>> vim"
+(
+  cd vim
+  STAGE="$WORK/stage"
+  rm -rf "$STAGE"
+  ./configure --prefix=/usr/local --with-features=huge --enable-multibyte \
+    --disable-gui --without-x --disable-nls --disable-gpm --disable-sysmouse --disable-selinux \
+    --disable-canberra --disable-libsodium --disable-netbeans --disable-darwin \
+    --with-tlib=tinfow \
+    PKG_CONFIG=false CC="$CC" CFLAGS="-Os -I$PREFIX/include" LDFLAGS="$LDSTATIC -L$PREFIX/lib -s" >/dev/null
+  "$MAKE" -j"$JOBS"
+  "$MAKE" install DESTDIR="$STAGE" >/dev/null
+  rm -rf "$DIST"
+  mkdir -p "$DIST"
+  cp -R "$STAGE/usr/local/bin" "$STAGE/usr/local/share" "$DIST/"
+  # desktop files and icons that nobody needs in a static archive
+  rm -rf "$DIST/share/applications" "$DIST/share/icons"
+)
+'''
+version_cmd = "\"$BIN\" --version | sed -n 1p"
+tests = '''
+
+version="$("$BIN" --version | sed -n 1p)"
+echo "$version" | grep -q '^VIM - Vi IMproved' || fail "vim --version: $version"
+pass "$version"
+
+# the runtime files are found through $VIM, as the archive is not at the compiled-in prefix
+export VIM="$DIST/share/vim"
+unset VIMRUNTIME
+out="$(printf 'pmg' | "$DIST/bin/xxd" -p)"
+[ "$out" = 706d67 ] || fail "xxd output: $out"
+out="$(printf '706d67' | "$DIST/bin/xxd" -r -p)"
+[ "$out" = pmg ] || fail "xxd -r output: $out"
+pass "xxd dumps and reverses"
+
+# edits a file in Ex mode on a terminal without terminfo
+printf 'hello\n' >"$TMP/in.txt"
+TERM=xterm-256color TERMINFO=/nonexistent TERMINFO_DIRS=/nonexistent \
+  "$BIN" -u NONE -es "$TMP/in.txt" <<'EOF' >/dev/null
+%s/hello/hello pmg/
+wq
+EOF
+[ "$(cat "$TMP/in.txt")" = "hello pmg" ] || fail "ex mode edit: $(cat "$TMP/in.txt")"
+pass "edits in Ex mode"
+
+"$BIN" -u NONE -es -c "redir! > $TMP/rt.txt | echo \$VIMRUNTIME | redir END | qa!" </dev/null
+grep -q 'share/vim/vim' "$TMP/rt.txt" || fail "runtime path: $(cat "$TMP/rt.txt")"
+test -f "$(tr -d '[:space:]' <"$TMP/rt.txt")/syntax/syntax.vim" || fail "no syntax files in the runtime"
+pass "finds the runtime files"
+'''
+ncurses = true
+
+[[vendor]]
+dir = "vim"
+url = "https://github.com/vim/vim.git"
+tag = "v9.2.1172"
+
+[[vendor]]
+dir = "ncurses"
+url = "https://github.com/ThomasDickey/ncurses-snapshots.git"
+tag = "v6_6"
+
+[[project]]
+name = "Vim"
+url = "https://github.com/vim/vim"
+copyright = "Bram Moolenaar and the Vim contributors"
+license = "Vim License (charityware, compatible with the GPL; see LICENSE in the sources)"
+
+[[project]]
+name = "xxd"
+url = "https://github.com/vim/vim/tree/master/src/xxd"
+copyright = "Juergen Weigert and contributors"
+license = '''
+X11-MIT or GNU General Public License v2.0 (GPL-2.0), at the choice of the user
+  (see the header of src/xxd/xxd.c)'''
+
+[[project]]
+name = "ncurses"
+url = "https://invisible-island.net/ncurses/"
+copyright = "Thomas E. Dickey and Free Software Foundation, Inc."
+license = "X11 License (MIT-style)"

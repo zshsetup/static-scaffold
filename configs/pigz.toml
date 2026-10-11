@@ -1,0 +1,76 @@
+name = "pigz"
+bin = "pigz"
+description = "Static build of pigz, the parallel gzip, with zlib linked in"
+upstream = '''
+[pigz](https://zlib.net/pigz/), the parallel implementation of gzip, with
+[zlib](https://zlib.net/) linked in statically'''
+tag = "v2.8"
+license_short = "the zlib license"
+outputs = '''
+- `dist/bin/pigz`, `dist/bin/unpigz`: the binary and a copy that decompresses by default;
+  copy them anywhere on your `PATH`
+- `dist/share/man/man1/pigz.1`: the man page'''
+build = '''
+
+echo ">>> zlib"
+(
+  cd zlib
+  CFLAGS="-Os" ./configure --static --prefix="$PREFIX" >/dev/null
+  "$MAKE" -j"$JOBS" libz.a
+  "$MAKE" install >/dev/null
+)
+
+echo ">>> pigz"
+(
+  cd pigz
+  "$MAKE" -j"$JOBS" CC="$CC" CFLAGS="-Os -I$PREFIX/include" LDFLAGS="-L$PREFIX/lib $LDSTATIC -s" pigz
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/share/man/man1"
+  cp pigz "$DIST/bin/pigz"
+  # pigz decompresses when it is run as unpigz
+  cp pigz "$DIST/bin/unpigz"
+  cp pigz.1 "$DIST/share/man/man1/pigz.1"
+)
+'''
+version_cmd = "\"$BIN\" --version"
+tests = '''
+
+version="$("$BIN" --version)"
+echo "$version" | grep -q '^pigz ' || fail "pigz --version: $version"
+pass "$version"
+
+head -c 300000 /dev/urandom | od -An -tx1 >"$TMP/data"
+cp "$TMP/data" "$TMP/orig"
+"$BIN" -p 4 "$TMP/data"
+[ -f "$TMP/data.gz" ] || fail "no .gz file"
+gzip -t "$TMP/data.gz" 2>/dev/null || true
+"$DIST/bin/unpigz" "$TMP/data.gz"
+[ "$(cat "$TMP/data")" = "$(cat "$TMP/orig")" ] || fail "round trip differs"
+pass "compresses and decompresses in parallel"
+
+# the output must be gzip compatible
+printf 'pmg\n' | "$BIN" -c | gzip -dc | grep -q '^pmg$' || fail "gzip cannot read the output"
+pass "output readable by gzip"
+'''
+
+[[vendor]]
+dir = "pigz"
+url = "https://github.com/madler/pigz.git"
+tag = "v2.8"
+
+[[vendor]]
+dir = "zlib"
+url = "https://github.com/madler/zlib.git"
+tag = "v1.3.2"
+
+[[project]]
+name = "pigz"
+url = "https://github.com/madler/pigz"
+copyright = "Mark Adler"
+license = "zlib license"
+
+[[project]]
+name = "zlib"
+url = "https://github.com/madler/zlib"
+copyright = "Jean-loup Gailly and Mark Adler"
+license = "zlib license"

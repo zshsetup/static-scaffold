@@ -1,0 +1,138 @@
+name = "tmux"
+bin = "tmux"
+description = "Static build of tmux with libevent and ncurses linked in"
+upstream = "[tmux](https://github.com/tmux/tmux), the terminal multiplexer, with libevent, jemalloc, and ncurses linked in statically"
+tag = "3.8"
+license_short = "ISC (tmux), BSD-3-Clause (libevent), BSD-2-Clause (jemalloc), and X11-MIT (ncurses)"
+prereq = '''
+
+- `autoconf`, `automake`, `libtool`, `pkg-config`, and `bison` (the git trees of tmux and libevent ship no `configure` script)'''
+apt = ["autoconf", "automake", "libtool", "pkg-config", "bison"]
+brew = ["autoconf", "automake", "libtool", "pkg-config"]
+extra = '''
+
+Common terminal descriptions (xterm, xterm-256color, screen, screen-256color, tmux, tmux-256color,
+linux, vt100, vt220, rxvt, alacritty, kitty, foot, wezterm, ...) are compiled into ncurses, so tmux
+works even on systems without a terminfo database. The system database is still used first, from
+`/etc/terminfo`, `/lib/terminfo`, `/usr/share/terminfo`, and `/usr/lib/terminfo`, or from
+`$TERMINFO`, `$TERMINFO_DIRS`, and `~/.terminfo`.
+
+The build uses jemalloc, as upstream does on macOS, and has no utf8proc and no systemd support.
+'''
+outputs = '''
+- `dist/bin/tmux`: the binary; copy it anywhere on your `PATH`
+- `dist/share/man/man1/tmux.1`: the man page'''
+build = '''
+
+echo ">>> libevent"
+(
+  cd libevent
+  [ -f configure ] || ./autogen.sh >/dev/null 2>&1
+  [ -f Makefile ] && "$MAKE" distclean >/dev/null 2>&1 || true
+  ./configure --prefix="$PREFIX" --disable-shared --enable-static --disable-openssl \
+    --disable-samples --disable-libevent-regress --disable-debug-mode \
+    CFLAGS="-Os -fPIC" >/dev/null
+  "$MAKE" -j"$JOBS" >/dev/null
+  "$MAKE" install >/dev/null
+)
+
+echo ">>> jemalloc"
+(
+  cd jemalloc
+  [ -f configure ] || autoconf
+  [ -f Makefile ] && "$MAKE" distclean >/dev/null 2>&1 || true
+  ./configure --prefix="$PREFIX" --disable-shared --enable-static --disable-cxx --disable-doc \
+    CFLAGS="-Os -fPIC" >/dev/null
+  "$MAKE" -j"$JOBS" build_lib_static >/dev/null
+  "$MAKE" install_lib_static install_include >/dev/null
+)
+
+echo ">>> tmux"
+(
+  cd tmux
+  [ -f configure ] || ./autogen.sh >/dev/null 2>&1
+  ./configure --prefix=/usr/local --disable-utf8proc --enable-jemalloc \
+    CFLAGS="-Os" CPPFLAGS="-I$PREFIX/include -I$PREFIX/include/ncursesw" \
+    LDFLAGS="$LDSTATIC -L$PREFIX/lib -s" \
+    LIBEVENT_CORE_CFLAGS="-I$PREFIX/include" LIBEVENT_CORE_LIBS="-L$PREFIX/lib -levent_core" \
+    LIBEVENT_CFLAGS="-I$PREFIX/include" LIBEVENT_LIBS="-L$PREFIX/lib -levent" \
+    JEMALLOC_CFLAGS="-I$PREFIX/include" JEMALLOC_LIBS="-L$PREFIX/lib -ljemalloc -lpthread" \
+    LIBTINFOW_CFLAGS="-I$PREFIX/include -I$PREFIX/include/ncursesw" \
+    LIBTINFOW_LIBS="-L$PREFIX/lib -lncursesw -ltinfow" \
+    LIBTINFO_CFLAGS="-I$PREFIX/include" LIBTINFO_LIBS="-L$PREFIX/lib -lncursesw -ltinfow" >/dev/null
+  "$MAKE" -j"$JOBS" >/dev/null
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/share/man/man1"
+  cp tmux "$DIST/bin/tmux"
+  cp tmux.1 "$DIST/share/man/man1/tmux.1"
+)
+'''
+version_cmd = "\"$BIN\" -V"
+tests = '''
+
+version="$("$BIN" -V)"
+echo "$version" | grep -q '^tmux ' || fail "tmux -V: $version"
+pass "$version"
+
+# runs a server on a terminal without terminfo, and reads what a pane printed
+export TERM=xterm-256color TERMINFO=/nonexistent TERMINFO_DIRS=/nonexistent
+sock="$TMP/sock"
+"$BIN" -S "$sock" -f /dev/null new-session -d -x 80 -y 24 "echo pmg-tmux; sleep 30"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  out="$("$BIN" -S "$sock" capture-pane -p 2>/dev/null || true)"
+  case "$out" in *pmg-tmux*) break ;; esac
+  sleep 1
+done
+"$BIN" -S "$sock" kill-server 2>/dev/null || true
+case "$out" in *pmg-tmux*) ;; *) fail "pane output: $out" ;; esac
+pass "runs a session and captures a pane"
+
+# jemalloc is linked in when the binary has its statistics symbols
+grep -a -q 'je_' "$BIN" || grep -a -q 'jemalloc' "$BIN" || fail "jemalloc is not linked in"
+pass "uses jemalloc"
+'''
+ncurses = true
+
+[[vendor]]
+dir = "tmux"
+url = "https://github.com/tmux/tmux.git"
+tag = "3.8"
+
+[[vendor]]
+dir = "libevent"
+url = "https://github.com/libevent/libevent.git"
+tag = "release-2.1.12-stable"
+
+[[vendor]]
+dir = "jemalloc"
+url = "https://github.com/jemalloc/jemalloc.git"
+tag = "5.4.0"
+
+[[vendor]]
+dir = "ncurses"
+url = "https://github.com/ThomasDickey/ncurses-snapshots.git"
+tag = "v6_6"
+
+[[project]]
+name = "tmux"
+url = "https://github.com/tmux/tmux"
+copyright = "Nicholas Marriott and contributors"
+license = "ISC (see COPYING in the sources)"
+
+[[project]]
+name = "libevent"
+url = "https://libevent.org/"
+copyright = "Niels Provos, Nick Mathewson, and contributors"
+license = "BSD-3-Clause (see LICENSE in the sources)"
+
+[[project]]
+name = "jemalloc"
+url = "https://jemalloc.net/"
+copyright = "Jason Evans, Facebook, Inc., and contributors"
+license = "BSD-2-Clause (see COPYING in the sources)"
+
+[[project]]
+name = "ncurses"
+url = "https://invisible-island.net/ncurses/"
+copyright = "Thomas E. Dickey and Free Software Foundation, Inc."
+license = "X11 License (MIT-style)"

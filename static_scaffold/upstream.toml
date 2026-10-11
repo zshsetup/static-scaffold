@@ -1,0 +1,95 @@
+[tmux]
+dir = "tmux"
+url = "https://github.com/tmux/tmux.git"
+pattern = '^[0-9]+\.[0-9]+[a-z]?$'
+release_sed = ""
+
+[aha]
+dir = "aha"
+url = "https://github.com/theZiz/aha.git"
+pattern = '^[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[tree]
+dir = "tree"
+url = "https://github.com/Old-Man-Programmer/tree.git"
+pattern = '^[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[pigz]
+dir = "pigz"
+url = "https://github.com/madler/pigz.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[pv]
+dir = "pv"
+url = "https://github.com/a-j-wood/pv.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[sqlite3]
+dir = "sqlite"
+url = "https://github.com/sqlite/sqlite.git"
+pattern = '^version-[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[vim]
+dir = "vim"
+url = "https://github.com/vim/vim.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[btop]
+dir = "btop"
+url = "https://github.com/aristocratos/btop.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[nano]
+dir = "nano"
+url = "https://git.savannah.gnu.org/git/nano.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[iotop]
+dir = "iotop"
+url = "https://github.com/Tomas-M/iotop.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[nvtop]
+dir = "nvtop"
+url = "https://github.com/Syllo/nvtop.git"
+pattern = '^[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[libheif]
+dir = "libheif"
+url = "https://github.com/strukturag/libheif.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[git]
+dir = "git"
+url = "https://github.com/git/git.git"
+pattern = '^v[0-9]+(\.[0-9]+)+$'
+release_sed = ""
+
+[zsh]
+dir = "zsh"
+url = "https://github.com/zsh-users/zsh.git"
+pattern = '^zsh-[0-9]+(\.[0-9]+)+$'
+release_sed = "s/^zsh-/v/"
+
+[screen]
+dir = "screen"
+url = "https://git.savannah.gnu.org/git/screen.git"
+pattern = '^v\.[0-9]+(\.[0-9]+)+$'
+release_sed = "s/^v\\./v/"
+
+[gawk]
+dir = "gawk"
+url = "https://git.savannah.gnu.org/git/gawk.git"
+pattern = '^gawk-[0-9]+(\.[0-9]+)+$'
+release_sed = "s/^gawk-/v/"

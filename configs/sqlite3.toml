@@ -1,0 +1,76 @@
+name = "sqlite3"
+bin = "sqlite3"
+description = "Static build of the sqlite3 shell with the SQLite library linked in"
+upstream = '''
+the [sqlite3](https://sqlite.org/cli.html) shell of [SQLite](https://sqlite.org/), with the
+library and the common extensions (FTS3/4/5, R-Tree, GeoPoly, session, dbstat) built in and
+[linenoise](https://github.com/antirez/linenoise) for line editing'''
+tag = "version-3.54.0"
+apt = ["tcl"]
+prereq = ", `tclsh` (to generate the amalgamation)"
+license_short = "public domain (SQLite) and BSD-2-Clause (linenoise)"
+outputs = '''
+- `dist/bin/sqlite3`: the shell, with the library inside; copy it anywhere on your `PATH`
+- `dist/share/man/man1/sqlite3.1`: the man page'''
+extra = '''
+
+Loading extensions at runtime is disabled in the fully static build, which cannot `dlopen`; the
+builds for glibc and macOS can.
+'''
+build = '''
+
+echo ">>> sqlite3"
+(
+  cd sqlite
+  # a fully static binary cannot load extensions
+  EXT=()
+  [ "$STATIC" = 1 ] && EXT=(--disable-load-extension)
+  ./configure --disable-shared --all --geopoly --session --dbstat \
+    --with-linenoise="$WORK/src/linenoise" --disable-readline ${EXT[@]+"${EXT[@]}"} \
+    CC="$CC" CFLAGS="-Os" LDFLAGS="$LDSTATIC -s" >/dev/null
+  "$MAKE" -j"$JOBS" sqlite3
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/share/man/man1"
+  cp sqlite3 "$DIST/bin/sqlite3"
+  cp sqlite3.1 "$DIST/share/man/man1/sqlite3.1"
+)
+'''
+version_cmd = "\"$BIN\" --version"
+tests = '''
+
+version="$("$BIN" --version)"
+echo "$version" | grep -q '^3\.' || fail "sqlite3 --version: $version"
+pass "$version"
+
+out="$(printf 'create table t (a, b);\ninsert into t values (6, 7);\nselect a * b from t;\n' | "$BIN" "$TMP/test.db")"
+[ "$out" = 42 ] || fail "query result: $out"
+pass "creates a database and queries it"
+
+out="$("$BIN" :memory: "select json_extract('{\"a\": [1, 2]}', '$.a[1]');")"
+[ "$out" = 2 ] || fail "JSON function: $out"
+out="$("$BIN" :memory: "create virtual table f using fts5 (x); insert into f values ('hello world'); select count(*) from f where f match 'hello';")"
+[ "$out" = 1 ] || fail "FTS5: $out"
+pass "JSON and FTS5 are built in"
+'''
+
+[[vendor]]
+dir = "sqlite"
+url = "https://github.com/sqlite/sqlite.git"
+tag = "version-3.54.0"
+
+[[vendor]]
+dir = "linenoise"
+url = "https://github.com/antirez/linenoise.git"
+commit = "a473823d74b93eab2ba83480df16ed37617493f2"
+
+[[project]]
+name = "SQLite"
+url = "https://github.com/sqlite/sqlite"
+copyright = "D. Richard Hipp and contributors"
+license = "Public domain (the authors disclaim copyright; see LICENSE.md)"
+
+[[project]]
+name = "linenoise"
+url = "https://github.com/antirez/linenoise"
+copyright = "Salvatore Sanfilippo and Pieter Noordhuis"
+license = "BSD 2-Clause License"

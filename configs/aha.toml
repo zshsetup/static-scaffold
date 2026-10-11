@@ -1,0 +1,48 @@
+name = "aha"
+bin = "aha"
+description = "Static build of aha, the ANSI HTML adapter"
+upstream = '''
+[aha](https://github.com/theZiz/aha), the ANSI HTML adapter, which converts terminal
+colors to HTML'''
+tag = "0.5.1"
+license_short = "LGPL-2.0-or-later or MPL-1.1, at your choice"
+outputs = '''
+- `dist/bin/aha`: the binary; copy it anywhere on your `PATH`
+- `dist/share/man/man1/aha.1`: the man page'''
+build = '''
+
+echo ">>> aha"
+(
+  cd aha
+  $CC -std=c99 -Os $LDSTATIC -o aha aha.c
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/share/man/man1"
+  cp aha "$DIST/bin/aha"
+  cp aha.1 "$DIST/share/man/man1/aha.1"
+)
+'''
+version_cmd = "\"$BIN\" --version"
+tests = '''
+
+version="$("$BIN" --version)"
+echo "$version" | grep -q 'Version' || fail "aha --version: $version"
+pass "$version"
+
+html="$(printf '\033[1;31mred\033[0m <plain>\n' | "$BIN" --no-header)"
+echo "$html" | grep -q 'red' || fail "colored text missing: $html"
+echo "$html" | grep -q '&lt;plain&gt;' || fail "HTML escapes missing: $html"
+pass "converts ANSI colors and escapes HTML"
+'''
+
+[[vendor]]
+dir = "aha"
+url = "https://github.com/theZiz/aha.git"
+tag = "0.5.1"
+
+[[project]]
+name = "aha"
+url = "https://github.com/theZiz/aha"
+copyright = "Alexander Matthes (Ziz) and contributors"
+license = '''
+GNU Lesser General Public License v2.0 or later (LGPL-2.0-or-later), or Mozilla
+  Public License v1.1 (MPL-1.1), dual licensed (see LICENSE.LGPLv2+ and LICENSE.MPL1.1)'''

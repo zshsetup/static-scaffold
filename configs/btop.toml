@@ -1,0 +1,56 @@
+name = "btop"
+bin = "btop"
+macos_only = true
+description = "Static build of btop++ for macOS on Apple silicon"
+upstream = '''
+[btop++](https://github.com/aristocratos/btop), the resource monitor, for macOS on Apple
+silicon, which the releases of btop have no build for'''
+tag = "v1.4.7"
+license_short = "Apache-2.0"
+extra = '''
+
+Unlike the other builds of this org it uses the C++ compiler of Xcode instead of zig, as the
+libc++ of zig does not build btop.
+'''
+outputs = '''
+- `dist/bin/btop`: the binary; copy it anywhere on your `PATH`
+- `dist/share/btop/themes`: the themes, which btop finds at `../share/btop/themes` from the binary'''
+build = '''
+
+echo ">>> btop"
+(
+  cd btop
+  # the C++ compiler of Xcode, as the libc++ of zig 0.15 has both std::unexpected, the class and the
+  # removed function, which btop names; the build still links only the libraries of macOS
+  "$MAKE" -j"$JOBS" CXX=c++ PLATFORM=macos ARCH=arm64 STATIC=true STRIP=true GPU_SUPPORT=true
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/share/btop"
+  cp bin/btop "$DIST/bin/btop"
+  cp -R themes "$DIST/share/btop/themes"
+)
+'''
+version_cmd = "\"$BIN\" --version"
+tests = '''
+
+version="$("$BIN" --version)"
+echo "$version" | grep -q '^btop version: ' || fail "btop --version: $version"
+pass "$version"
+
+out="$("$BIN" --help 2>&1)"
+echo "$out" | grep -q -i 'usage' || fail "btop --help: $out"
+pass "usage"
+
+[ -f "$DIST/share/btop/themes/dracula.theme" ] || fail "no themes"
+pass "themes"
+'''
+
+[[vendor]]
+dir = "btop"
+url = "https://github.com/aristocratos/btop.git"
+tag = "v1.4.7"
+
+[[project]]
+name = "btop++"
+url = "https://github.com/aristocratos/btop"
+copyright = "Jakob P. Liljenberg (aristocratos) and contributors"
+license = "Apache License 2.0"

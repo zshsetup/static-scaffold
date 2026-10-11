@@ -1,0 +1,56 @@
+name = "tree"
+bin = "tree"
+description = "Static build of tree, the directory listing command"
+upstream = '''
+[tree](https://oldmanprogrammer.net/source.php?dir=projects/tree), which lists the
+contents of directories as a tree'''
+tag = "2.3.2"
+license_short = "GPL-2.0-or-later"
+outputs = '''
+- `dist/bin/tree`: the binary; copy it anywhere on your `PATH`
+- `dist/share/man/man1/tree.1`: the man page'''
+build = '''
+
+echo ">>> tree"
+(
+  cd tree
+  # CC has to be given to make, whose default for CC is set; the optimization flags of the Makefile
+  # stay out, as they are for gcc only
+  "$MAKE" -j"$JOBS" CC="$CC" CFLAGS="-Os -std=c11" LDFLAGS="$LDSTATIC -s" tree
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/share/man/man1"
+  cp tree "$DIST/bin/tree"
+  cp doc/tree.1 "$DIST/share/man/man1/tree.1"
+)
+'''
+version_cmd = "\"$BIN\" --version"
+tests = '''
+
+version="$("$BIN" --version)"
+echo "$version" | grep -q '^tree v' || fail "tree --version: $version"
+pass "$version"
+
+mkdir -p "$TMP/top/sub/deeper"
+touch "$TMP/top/file.txt" "$TMP/top/sub/inner.txt"
+out="$("$BIN" -n "$TMP/top")"
+for name in file.txt sub inner.txt deeper; do
+  echo "$out" | grep -q "$name" || fail "$name missing from the listing: $out"
+done
+echo "$out" | grep -q '3 directories, 2 files' || fail "summary line: $out"
+pass "lists a directory tree"
+
+json="$("$BIN" -J "$TMP/top")"
+echo "$json" | grep -q '"name":"file.txt"' || fail "JSON output: $json"
+pass "JSON output"
+'''
+
+[[vendor]]
+dir = "tree"
+url = "https://github.com/Old-Man-Programmer/tree.git"
+tag = "2.3.2"
+
+[[project]]
+name = "tree"
+url = "https://github.com/Old-Man-Programmer/tree"
+copyright = "Steve Baker and contributors"
+license = "GNU General Public License v2.0 or later (GPL-2.0-or-later)"

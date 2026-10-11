@@ -11,6 +11,9 @@
 #     prek update
 #
 # See https://github.com/j178/prek
+# the templates are rendered into the repos, which lint the result; their placeholders are no
+# valid YAML or shell
+exclude: ^static_scaffold/templates/
 repos:
   # standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks

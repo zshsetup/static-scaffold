@@ -43,6 +43,37 @@ The tag patterns of all repos, also those without a config, are listed in
 need an `UPDATE_TOKEN` secret, a token of a user that may push to the repo and create releases,
 because pull requests and releases of the default token start no workflows.
 
+## Keeping the binaries small
+
+The released archives are downloaded by every user, so a config should keep them small:
+
+- Compile with `-ffunction-sections -fdata-sections`, link with `-Wl,--gc-sections` (`-Wl,-dead_strip`
+  on macOS) and `-s`, as `configs/openssh.toml` does.
+
+- Build the libraries without what the program does not use, e.g. OpenSSL without TLS, DSA, and
+  the legacy ciphers.
+
+- Never ship a copy of a binary under a second name, use a symlink (`unpigz` links to `pigz`). The
+  archives keep symlinks, and the spec of pmg reaches them with `links`.
+
+- Link a project with several programs into a single multi-call binary, as BusyBox does, when each
+  program would otherwise carry its own copy of a large static library. The binary picks its tool
+  from the name it is run as, and the other names are symlinks to it. `configs/openssh.toml` does
+  this and shrinks the suite from about 62 MB (24 MB archived) to 7.6 MB (3.2 MB), the recipe is:
+
+  1. Partial-link the objects of each program with the parts of the project library it needs
+     (`ld -r ... --start-group -lssh ... --end-group`), as the programs define globals with the same
+     names, and the library calls functions that each program defines in its own way.
+  1. Rename `main` to a name of its own (`objcopy --redefine-sym`, or `-Dmain=...` when compiling
+     the file of `main` where there is no `objcopy`, e.g. macOS) and make every other symbol of the
+     object local (`objcopy --keep-global-symbol`, `ld -r -exported_symbol` and `nmedit -s`).
+  1. Link all of them once with a small dispatcher `main` that looks at `basename(argv[0])`.
+  1. Check with the smoke tests that the programs find each other by name (`PATH`, symlinks), also
+     those that a program starts itself, like `sshd` with `sshd-session`.
+
+  It is feasible when the programs are built from separate objects, and not worth it for a single
+  binary, or when the extra programs are small and share no large library.
+
 ## License
 
 MIT

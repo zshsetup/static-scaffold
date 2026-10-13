@@ -56,8 +56,8 @@ The archives of the generated repos are what users download, so the configs keep
   The archives keep symlinks, and pmg links them with `links` in the spec.
 - Projects with several programs that would each embed the same large static library are linked
   into one multi-call binary, like BusyBox, whose symlinks run as the tool they are named after.
-  `configs/openssh.toml` does this for OpenSSH: the unpacked archive shrinks from 62 MB to 7.6 MB,
-  and the download from 24 MB to 3.2 MB.
+  `configs/openssh.toml` does this for OpenSSH: the unpacked archive shrinks from 62 MB to 9 MB,
+  and the download from 24 MB to 4 MB.
 
 For the multi-call binary, the objects of each program are linked together with the parts of
 the project library they need, and all of their symbols but `main` are made local, as the programs

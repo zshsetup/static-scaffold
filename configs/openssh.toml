@@ -1,0 +1,170 @@
+name = "openssh"
+bin = "ssh"
+description = "Static build of the OpenSSH suite with OpenSSL and zlib linked in"
+upstream = '''
+[OpenSSH](https://www.openssh.com/), the secure shell suite (`ssh`, `scp`, `sftp`, `ssh-keygen`,
+`ssh-agent`, `ssh-add`, `ssh-keyscan`, and `sshd`), with [OpenSSL](https://www.openssl.org/) and
+[zlib](https://zlib.net/) linked in statically'''
+tag = "v10.6p1"
+license_short = "BSD-style and ISC (OpenSSH), Apache-2.0 (OpenSSL), and the zlib license"
+prereq = '''
+
+- `autoconf` and `automake` (the git tree of OpenSSH ships no `configure` script), and `perl` (for OpenSSL)'''
+apt = ["autoconf", "automake"]
+brew = ["autoconf", "automake"]
+extra = '''
+
+The build has no PAM, no Kerberos, no SELinux, and no built-in FIDO support (security keys work
+through a `SecurityKeyProvider`). `sshd` is built, but not configured: it needs a host key and a
+config file (`-h`, `-f`). It starts `sshd-session` and `sshd-auth` from the prefix it was compiled
+for, so point it to `libexec` with `-o SshdSessionPath=...` and `-o SshdAuthPath=...`. The system
+config of `ssh` is `/etc/ssh`, and `-F` selects another file.
+'''
+dirs = "bin sbin libexec share"
+outputs = '''
+- `dist/bin`: `ssh`, `scp`, `sftp`, `ssh-add`, `ssh-agent`, `ssh-keygen`, `ssh-keyscan`; copy them
+  anywhere on your `PATH`
+- `dist/sbin/sshd`: the server
+- `dist/libexec`: the parts of `sshd` and the helper programs of the suite
+- `dist/share/man`: the man pages'''
+build = '''
+
+echo ">>> zlib"
+(
+  cd zlib
+  CFLAGS="-Os" ./configure --static --prefix="$PREFIX" >/dev/null
+  "$MAKE" -j"$JOBS" libz.a
+  "$MAKE" install >/dev/null
+)
+
+echo ">>> openssl"
+(
+  cd openssl
+  [ -f Makefile ] && "$MAKE" distclean >/dev/null 2>&1 || true
+  # OpenSSH only needs libcrypto
+  ./Configure no-shared no-dso no-tests no-docs no-apps no-module no-engine no-legacy no-comp \
+    --prefix="$PREFIX" --libdir=lib CC="$CC" AR="$AR" RANLIB="$RANLIB" CFLAGS="-Os" >/dev/null
+  "$MAKE" -j"$JOBS" build_libs >/dev/null
+  "$MAKE" install_dev >/dev/null
+)
+
+echo ">>> openssh"
+(
+  cd openssh
+  # the copy of the sources has new timestamps, which make a shipped configure stale
+  autoreconf -fi >/dev/null 2>&1
+  [ -f Makefile ] && "$MAKE" distclean >/dev/null 2>&1 || true
+  LIBS=""
+  [ "$OS" = Linux ] && LIBS="-lpthread"
+  ./configure --prefix=/usr/local --sysconfdir=/etc/ssh --with-ssl-dir="$PREFIX" \
+    --with-zlib="$PREFIX" --without-pam --without-selinux --without-kerberos5 --disable-strip \
+    CFLAGS="-Os" CPPFLAGS="-I$PREFIX/include" LDFLAGS="$LDSTATIC -L$PREFIX/lib -s" \
+    LIBS="$LIBS" >/dev/null
+  # scp and sftp run the ssh of the prefix, which the archive is not at, so they use PATH
+  "$MAKE" -j"$JOBS" SSH_PROGRAM=ssh >/dev/null
+  rm -rf "$DIST"
+  mkdir -p "$DIST/bin" "$DIST/sbin" "$DIST/libexec"
+  cp ssh scp sftp ssh-add ssh-agent ssh-keygen ssh-keyscan "$DIST/bin/"
+  cp sshd "$DIST/sbin/"
+  cp sshd-session sshd-auth sftp-server ssh-keysign ssh-pkcs11-helper ssh-sk-helper \
+    "$DIST/libexec/"
+  for section in 1 5 8; do
+    mkdir -p "$DIST/share/man/man$section"
+    cp ./*."$section" "$DIST/share/man/man$section/"
+  done
+)
+'''
+version_cmd = "\"$BIN\" -V 2>&1"
+tests = '''
+
+version="$("$BIN" -V 2>&1)"
+echo "$version" | grep -q '^OpenSSH_' || fail "ssh -V: $version"
+pass "$version"
+
+for tool in scp sftp ssh-add ssh-agent ssh-keygen ssh-keyscan; do
+  test -x "$DIST/bin/$tool" || fail "$tool is missing"
+done
+test -x "$DIST/sbin/sshd" || fail "sshd is missing"
+pass "has the suite"
+
+# keys of all types, and a signature that verifies
+for type in ed25519 ecdsa rsa; do
+  "$DIST/bin/ssh-keygen" -q -t "$type" -N '' -f "$TMP/key-$type" || fail "ssh-keygen -t $type"
+done
+echo pmg >"$TMP/data"
+"$DIST/bin/ssh-keygen" -Y sign -q -f "$TMP/key-ed25519" -n test "$TMP/data" || fail "sign"
+echo "pmg $(cat "$TMP/key-ed25519.pub")" >"$TMP/signers"
+"$DIST/bin/ssh-keygen" -Y verify -f "$TMP/signers" -I pmg -n test -s "$TMP/data.sig" \
+  <"$TMP/data" >/dev/null || fail "verify"
+pass "generates keys, signs, and verifies"
+
+# connects to a local sshd as the current user, runs a command, and copies a file through sftp
+if [ "$(id -u)" != 0 ]; then
+  cp "$TMP/key-ed25519.pub" "$TMP/authorized_keys"
+  chmod 600 "$TMP/authorized_keys"
+  port=$((20000 + $$ % 20000))
+  cat >"$TMP/sshd_config" <<EOF
+Port $port
+ListenAddress 127.0.0.1
+HostKey $TMP/key-rsa
+AuthorizedKeysFile $TMP/authorized_keys
+PidFile $TMP/sshd.pid
+StrictModes no
+PasswordAuthentication no
+Subsystem sftp internal-sftp
+EOF
+  # sshd starts its parts from the compiled-in prefix, which the archive is not at
+  "$DIST/sbin/sshd" -f "$TMP/sshd_config" -o "SshdSessionPath=$DIST/libexec/sshd-session" \
+    -o "SshdAuthPath=$DIST/libexec/sshd-auth" -E "$TMP/sshd.log" || fail "sshd: $(cat "$TMP/sshd.log")"
+  trap 'kill "$(cat "$TMP/sshd.pid" 2>/dev/null)" 2>/dev/null; rm -rf "$TMP"' EXIT
+  PATH="$DIST/bin:$PATH"
+  opts="-F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $TMP/key-ed25519 -o Port=$port"
+  # shellcheck disable=SC2086
+  out="$("$BIN" $opts 127.0.0.1 echo pmg-ssh 2>/dev/null)" || fail "ssh failed: $(cat "$TMP/sshd.log")"
+  [ "$out" = pmg-ssh ] || fail "ssh output: $out"
+  pass "runs a command through ssh"
+  # shellcheck disable=SC2086
+  "$DIST/bin/sftp" $opts -b - 127.0.0.1 >/dev/null 2>&1 <<EOF || fail "sftp failed"
+get $TMP/data $TMP/data.copy
+EOF
+  [ "$(cat "$TMP/data.copy")" = pmg ] || fail "sftp copy: $(cat "$TMP/data.copy")"
+  pass "copies a file through sftp"
+fi
+'''
+
+[upstream_tags]
+pattern = '^V_[0-9]+_[0-9]+_P[0-9]+$'
+release_sed = 's/^V_\([0-9]*\)_\([0-9]*\)_P\([0-9]*\)$/v\1.\2p\3/'
+
+[[vendor]]
+dir = "openssh"
+url = "https://github.com/openssh/openssh-portable.git"
+tag = "V_10_6_P1"
+
+[[vendor]]
+dir = "openssl"
+url = "https://github.com/openssl/openssl.git"
+tag = "openssl-3.5.9"
+
+[[vendor]]
+dir = "zlib"
+url = "https://github.com/madler/zlib.git"
+tag = "v1.3.2"
+
+[[project]]
+name = "OpenSSH"
+url = "https://www.openssh.com/"
+copyright = "Tatu Ylonen, Theo de Raadt, Markus Friedl, and the OpenSSH developers"
+license = "BSD-style and ISC (see LICENCE in the sources)"
+
+[[project]]
+name = "OpenSSL"
+url = "https://www.openssl.org/"
+copyright = "The OpenSSL Project Authors"
+license = "Apache-2.0 (see LICENSE.txt in the sources)"
+
+[[project]]
+name = "zlib"
+url = "https://zlib.net/"
+copyright = "Jean-loup Gailly and Mark Adler"
+license = "zlib license"

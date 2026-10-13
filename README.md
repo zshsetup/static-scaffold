@@ -43,36 +43,28 @@ The tag patterns of all repos, also those without a config, are listed in
 need an `UPDATE_TOKEN` secret, a token of a user that may push to the repo and create releases,
 because pull requests and releases of the default token start no workflows.
 
-## Keeping the binaries small
+## Binary size
 
-The released archives are downloaded by every user, so a config should keep them small:
+The archives of the generated repos are what users download, so the configs keep them small:
 
-- Compile with `-ffunction-sections -fdata-sections`, link with `-Wl,--gc-sections` (`-Wl,-dead_strip`
-  on macOS) and `-s`, as `configs/openssh.toml` does.
+- Unused code is dropped at link time (`-ffunction-sections -fdata-sections` with
+  `-Wl,--gc-sections`, or `-Wl,-dead_strip` on macOS) and the binaries are stripped.
+- Libraries are built without the parts the program does not use, e.g. OpenSSL in
+  `configs/openssh.toml` has no TLS, DSA, or legacy ciphers.
+- A program under a second name is a symlink to the first and not a copy, like `unpigz` of pigz.
+  The archives keep symlinks, and pmg links them with `links` in the spec.
+- Projects with several programs that would each embed the same large static library are linked
+  into one multi-call binary, like BusyBox, whose symlinks run as the tool they are named after.
+  `configs/openssh.toml` does this for OpenSSH: the unpacked archive shrinks from 62 MB to 7.6 MB,
+  and the download from 24 MB to 3.2 MB.
 
-- Build the libraries without what the program does not use, e.g. OpenSSL without TLS, DSA, and
-  the legacy ciphers.
-
-- Never ship a copy of a binary under a second name, use a symlink (`unpigz` links to `pigz`). The
-  archives keep symlinks, and the spec of pmg reaches them with `links`.
-
-- Link a project with several programs into a single multi-call binary, as BusyBox does, when each
-  program would otherwise carry its own copy of a large static library. The binary picks its tool
-  from the name it is run as, and the other names are symlinks to it. `configs/openssh.toml` does
-  this and shrinks the suite from about 62 MB (24 MB archived) to 7.6 MB (3.2 MB), the recipe is:
-
-  1. Partial-link the objects of each program with the parts of the project library it needs
-     (`ld -r ... --start-group -lssh ... --end-group`), as the programs define globals with the same
-     names, and the library calls functions that each program defines in its own way.
-  1. Rename `main` to a name of its own (`objcopy --redefine-sym`, or `-Dmain=...` when compiling
-     the file of `main` where there is no `objcopy`, e.g. macOS) and make every other symbol of the
-     object local (`objcopy --keep-global-symbol`, `ld -r -exported_symbol` and `nmedit -s`).
-  1. Link all of them once with a small dispatcher `main` that looks at `basename(argv[0])`.
-  1. Check with the smoke tests that the programs find each other by name (`PATH`, symlinks), also
-     those that a program starts itself, like `sshd` with `sshd-session`.
-
-  It is feasible when the programs are built from separate objects, and not worth it for a single
-  binary, or when the extra programs are small and share no large library.
+For the multi-call binary, the objects of each program are linked together with the parts of
+the project library they need, and all of their symbols but `main` are made local, as the programs
+define globals with the same names. The renamed `main` functions are then linked once, with
+a small dispatcher that looks at `basename(argv[0])`. The smoke tests cover the programs that
+start each other by name, like `sshd` with `sshd-session`. This works for projects whose programs
+are built from separate objects, and brings little where there is one program or the others are
+small.
 
 ## License
 

@@ -97,5 +97,5 @@ release_sed = "s/^gawk-/v/"
 [openssh]
 dir = "openssh"
 url = "https://github.com/openssh/openssh-portable.git"
-pattern = '^V_[0-9]+_[0-9]+_P[0-9]+$'
+pattern = "^V_[0-9]+_[0-9]+_P[0-9]+$"
 release_sed = 's/^V_\([0-9]*\)_\([0-9]*\)_P\([0-9]*\)$/v\1.\2p\3/'

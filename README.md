@@ -45,7 +45,8 @@ because pull requests and releases of the default token start no workflows.
 
 ## Binary size
 
-The archives of the generated repos are what users download, so the configs keep them small:
+The archives of the generated repos are what users download, so a config can keep them small. These
+are ways to do it, which a config uses where they pay off:
 
 - Unused code can be dropped at link time (`-ffunction-sections -fdata-sections` with
   `-Wl,--gc-sections`, or `-Wl,-dead_strip` on macOS), as `configs/openssh.toml` does. For tmux,

@@ -1,9 +1,9 @@
 name = "openssh"
 bin = "ssh"
-description = "Static build of the OpenSSH suite with OpenSSL and zlib linked in"
+description = "Static build of the OpenSSH suite and the openssl tool, with OpenSSL and zlib linked in"
 upstream = '''
 [OpenSSH](https://www.openssh.com/), the secure shell suite (`ssh`, `scp`, `sftp`, `ssh-keygen`,
-`ssh-agent`, `ssh-add`, `ssh-keyscan`, and `sshd`), with [OpenSSL](https://www.openssl.org/) and
+`ssh-agent`, `ssh-add`, `ssh-keyscan`, and `sshd`) and the `openssl` tool, with [OpenSSL](https://www.openssl.org/) and
 [zlib](https://zlib.net/) linked in statically'''
 tag = "v10.6p1"
 license_short = "BSD-style and ISC (OpenSSH), Apache-2.0 (OpenSSL), and the zlib license"
@@ -20,9 +20,12 @@ BusyBox), so that OpenSSL and zlib are linked in once. The other names in `bin`,
 use the symlinks of the archive; called by a name that is not a tool, it prints a message and exits.
 
 The build has no PAM, no Kerberos, no SELinux, and no built-in FIDO support (security keys work
-through a `SecurityKeyProvider`). OpenSSL is built without DSA, TLS, and legacy ciphers (Blowfish,
-CAST, RC2, RC4, IDEA, SEED, Camellia, and ARIA), none of which OpenSSH uses by default. `scp` and
-`sftp` start the `ssh` found in `PATH`, not one at a compiled-in path.
+through a `SecurityKeyProvider`). `scp` and `sftp` start the `ssh` found in `PATH`, not one at a
+compiled-in path.
+
+`openssl` is another name of the binary, with TLS (`s_client`, `s_server`) but without the
+commands for OCSP, time stamps, CMS, DSA, and the legacy ciphers (Blowfish, CAST, RC2, RC4, IDEA,
+SEED, Camellia, and ARIA). Its configuration and certificates are in `/etc/ssl`.
 
 `sshd` is built, but not configured: it needs a host key and a config file (`-h`, `-f`). It starts
 `sshd-session` and `sshd-auth` from the prefix it was compiled for, so point it to `libexec` with
@@ -32,7 +35,8 @@ CAST, RC2, RC4, IDEA, SEED, Camellia, and ARIA), none of which OpenSSH uses by d
 dirs = "bin sbin libexec share"
 outputs = '''
 - `dist/bin/ssh`: the binary with all tools; copy it anywhere on your `PATH`, and the tools you
-  need as symlinks to it (`scp`, `sftp`, `ssh-add`, `ssh-agent`, `ssh-keygen`, `ssh-keyscan`)
+  need as symlinks to it (`scp`, `sftp`, `ssh-add`, `ssh-agent`, `ssh-keygen`, `ssh-keyscan`,
+  `openssl`)
 - `dist/sbin/sshd`: a symlink for the server
 - `dist/libexec`: symlinks for the parts of `sshd` and the helper programs of the suite
 - `dist/share/man`: the man pages'''
@@ -55,14 +59,16 @@ echo ">>> openssl"
 (
   cd openssl
   [ -f Makefile ] && "$MAKE" distclean >/dev/null 2>&1 || true
-  # OpenSSH only needs libcrypto, and none of its legacy and TLS parts
-  ./Configure no-shared no-dso no-tests no-docs no-apps no-module no-engine no-legacy no-comp \
-    no-ssl no-tls no-dtls no-ocsp no-ts no-cms no-srp no-psk no-ct no-sctp no-quic no-srtp \
+  # OpenSSH only needs libcrypto, the openssl tool also libssl; without legacy and rarely used parts
+  ./Configure no-shared no-dso no-tests no-docs no-module no-engine no-legacy no-comp \
+    no-ocsp no-ts no-cms no-srp no-psk no-ct no-sctp no-quic no-srtp \
     no-dsa no-ec2m no-rfc3779 no-gost no-idea no-seed no-rc2 no-rc4 no-rc5 no-md2 no-md4 no-mdc2 \
     no-whirlpool no-bf no-cast no-camellia no-aria no-sm2 no-sm3 no-sm4 no-cmac no-siphash \
-    --prefix="$PREFIX" --libdir=lib CC="$CC" AR="$AR" RANLIB="$RANLIB" \
+    --prefix="$PREFIX" --libdir=lib --openssldir=/etc/ssl CC="$CC" AR="$AR" RANLIB="$RANLIB" \
     CFLAGS="-Os $GC_CFLAGS" >/dev/null
   "$MAKE" -j"$JOBS" build_libs >/dev/null
+  # the objects of the openssl tool, which is linked into the binary of OpenSSH
+  "$MAKE" -j"$JOBS" apps/openssl >/dev/null
   "$MAKE" install_dev >/dev/null
 )
 
@@ -97,7 +103,7 @@ echo ">>> openssh"
   TOOLS="$TOOLS scp:SCP_OBJS sftp:SFTP_OBJS sftp-server:SFTPSERVER_OBJS ssh-add:SSHADD_OBJS"
   TOOLS="$TOOLS ssh-agent:SSHAGENT_OBJS ssh-keygen:SSHKEYGEN_OBJS ssh-keyscan:SSHKEYSCAN_OBJS"
   TOOLS="$TOOLS ssh-keysign:SSHKEYSIGN_OBJS ssh-pkcs11-helper:P11HELPER_OBJS"
-  TOOLS="$TOOLS ssh-sk-helper:SKHELPER_OBJS"
+  TOOLS="$TOOLS ssh-sk-helper:SKHELPER_OBJS openssl:-"
   {
     echo 'int main(int, char **);'
     for entry in $TOOLS; do echo "int ${entry%%:*}_multi_main(int, char **);" | tr - _; done
@@ -124,6 +130,7 @@ EOF
   objects=""
   for entry in $TOOLS; do
     name="${entry%%:*}"
+    [ "$name" = openssl ] && continue
     sym="$(echo "$name" | tr - _)_multi_main"
     # shellcheck disable=SC2046
     if [ "$OS" = Linux ]; then
@@ -148,6 +155,27 @@ EOF
     fi
     objects="$objects $MULTI/$name.o"
   done
+  # the openssl tool, from its objects and the libraries they need
+  OSSL="$WORK/src/openssl"
+  if [ "$OS" != Linux ]; then
+    rm -f "$OSSL/apps/openssl-bin-openssl.o"
+    "$MAKE" -C "$OSSL" apps/openssl-bin-openssl.o CPPFLAGS="-Dmain=openssl_multi_main" >/dev/null
+  fi
+  OSSL_OBJS="$(cd "$OSSL" && find apps -name 'openssl-bin-*.o' | sort | sed "s|^|$OSSL/|")"
+  # shellcheck disable=SC2086
+  if [ "$OS" = Linux ]; then
+    ld -r -o "$MULTI/openssl.o" $OSSL_OBJS "$OSSL/apps/libapps.a" "$OSSL/libssl.a"
+    objcopy --redefine-sym main=openssl_multi_main --keep-global-symbol=openssl_multi_main \
+      --keep-global-symbol=__llvm_retpoline_r11 "$MULTI/openssl.o"
+  else
+    ld -r -o "$MULTI/openssl.o" -exported_symbol _openssl_multi_main $OSSL_OBJS \
+      "$OSSL/apps/libapps.a" "$OSSL/libssl.a"
+    if [ "$(nm -gU "$MULTI/openssl.o" | grep -c ' T \| D \| S \| B ')" != 1 ]; then
+      echo _openssl_multi_main >"$MULTI/openssl.exports"
+      nmedit -s "$MULTI/openssl.exports" "$MULTI/openssl.o"
+    fi
+  fi
+  objects="$objects $MULTI/openssl.o"
   # shellcheck disable=SC2046,SC2086
   $CC -O2 -o "$DIST/bin/ssh" "$MULTI/multi.c" $objects $LDSTATIC -L"$PREFIX/lib" \
     $GC_LDFLAGS -s $(var LIBS) $(var SSHDLIBS) $(var CHANNELLIBS)
@@ -156,7 +184,7 @@ EOF
     case "$name" in
       ssh) ;;
       sshd) ln -s ../bin/ssh "$DIST/sbin/$name" ;;
-      scp | sftp | ssh-add | ssh-agent | ssh-keygen | ssh-keyscan) ln -s ssh "$DIST/bin/$name" ;;
+      scp | sftp | ssh-add | ssh-agent | ssh-keygen | ssh-keyscan | openssl) ln -s ssh "$DIST/bin/$name" ;;
       *) ln -s ../bin/ssh "$DIST/libexec/$name" ;;
     esac
   done
@@ -190,6 +218,26 @@ echo "pmg $(cat "$TMP/key-ed25519.pub")" >"$TMP/signers"
 "$DIST/bin/ssh-keygen" -Y verify -f "$TMP/signers" -I pmg -n test -s "$TMP/data.sig" \
   <"$TMP/data" >/dev/null || fail "verify"
 pass "generates keys, signs, and verifies"
+
+# the openssl tool makes a certificate, and speaks TLS with its own server
+ossl="$DIST/bin/openssl"
+"$ossl" version | grep -q '^OpenSSL ' || fail "openssl version"
+"$ossl" req -x509 -newkey ed25519 -nodes -keyout "$TMP/tls.key" -out "$TMP/tls.crt" \
+  -subj /CN=localhost -days 1 2>/dev/null || fail "openssl req"
+"$ossl" x509 -in "$TMP/tls.crt" -noout -subject | grep -q CN=localhost || fail "openssl x509"
+pass "makes a certificate with openssl"
+tls_port=$((40000 + $$ % 20000))
+"$ossl" s_server -accept "$tls_port" -cert "$TMP/tls.crt" -key "$TMP/tls.key" -naccept 1 -quiet \
+  >/dev/null 2>&1 &
+tls_pid=$!
+out=""
+for _ in 1 2 3 4 5; do
+  sleep 1
+  out="$(echo | "$ossl" s_client -connect "127.0.0.1:$tls_port" -brief 2>&1)" && break
+done
+kill "$tls_pid" 2>/dev/null || true
+case "$out" in *TLSv1.3*) ;; *) fail "openssl s_client: $out" ;; esac
+pass "speaks TLS with openssl s_server and s_client"
 
 # connects to a local sshd as the current user, runs a command, and copies a file through sftp
 if [ "$(id -u)" != 0 ]; then

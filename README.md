@@ -47,10 +47,11 @@ because pull requests and releases of the default token start no workflows.
 
 The archives of the generated repos are what users download, so the configs keep them small:
 
-- Unused code is dropped at link time (`-ffunction-sections -fdata-sections` with
-  `-Wl,--gc-sections`, or `-Wl,-dead_strip` on macOS) and the binaries are stripped.
+- Unused code can be dropped at link time (`-ffunction-sections -fdata-sections` with
+  `-Wl,--gc-sections`, or `-Wl,-dead_strip` on macOS), as `configs/openssh.toml` does. For tmux,
+  vim, and sqlite3 it saved only 3 to 8%, so their configs leave it out.
 - Libraries are built without the parts the program does not use, e.g. OpenSSL in
-  `configs/openssh.toml` has no TLS, DSA, or legacy ciphers.
+  `configs/openssh.toml` has no DSA, legacy ciphers, or the other options it can do without.
 - A program under a second name is a symlink to the first and not a copy, like `unpigz` of pigz.
   The archives keep symlinks, and pmg links them with `links` in the spec.
 - Projects with several programs that would each embed the same large static library are linked

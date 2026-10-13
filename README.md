@@ -28,7 +28,13 @@ uv run python -m static_scaffold new configs/tmux.toml --output ~/repos
 ```
 
 The repo is created in `~/repos/tmux-static` with the submodules cloned. Review it, then publish
-it with `gh repo create zshsetup/tmux-static --public --source . --push`.
+it, and allow the update workflow to merge its pull requests once the checks pass and to delete
+their branches:
+
+```shell
+gh repo create zshsetup/tmux-static --public --source . --push
+gh api -X PATCH repos/zshsetup/tmux-static -F allow_auto_merge=true -F delete_branch_on_merge=true
+```
 
 `new` also writes the workflows that open a pull request when upstream publishes a new release,
 using the `[upstream_tags]` table of the config. To rewrite them in an existing checkout, e.g. after

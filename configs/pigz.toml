@@ -7,7 +7,7 @@ upstream = '''
 tag = "v2.8"
 license_short = "the zlib license"
 outputs = '''
-- `dist/bin/pigz`, `dist/bin/unpigz`: the binary and a copy that decompresses by default;
+- `dist/bin/pigz`, `dist/bin/unpigz`: the binary and a symlink to it that decompresses by default;
   copy them anywhere on your `PATH`
 - `dist/share/man/man1/pigz.1`: the man page'''
 build = '''
@@ -27,8 +27,8 @@ echo ">>> pigz"
   rm -rf "$DIST"
   mkdir -p "$DIST/bin" "$DIST/share/man/man1"
   cp pigz "$DIST/bin/pigz"
-  # pigz decompresses when it is run as unpigz
-  cp pigz "$DIST/bin/unpigz"
+  # pigz decompresses when it is run as unpigz, so it is a symlink
+  ln -s pigz "$DIST/bin/unpigz"
   cp pigz.1 "$DIST/share/man/man1/pigz.1"
 )
 '''

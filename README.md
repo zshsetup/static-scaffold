@@ -28,12 +28,27 @@ uv run python -m static_scaffold new configs/tmux.toml --output ~/repos
 ```
 
 The repo is created in `~/repos/tmux-static` with the submodules cloned. Review it, then publish
-it, and allow the update workflow to merge its pull requests once the checks pass and to delete
-their branches:
+it:
 
 ```shell
 gh repo create zshsetup/tmux-static --public --source . --push
-gh api -X PATCH repos/zshsetup/tmux-static -F allow_auto_merge=true -F delete_branch_on_merge=true
+```
+
+The repos of zshsetup share their settings, which the next commands copy from `tmux-static` to
+a new repo. The first lets the update workflow merge its pull requests once the checks pass and
+delete their branches, the second makes the checks required, and the others allow Actions to open
+pull requests and turn on Dependabot alerts:
+
+```shell
+repo=zshsetup/NAME-static
+gh api -X PATCH repos/$repo -F allow_auto_merge=true -F delete_branch_on_merge=true
+gh api repos/zshsetup/tmux-static/rulesets --jq '.[0].id' \
+  | xargs -I{} gh api repos/zshsetup/tmux-static/rulesets/{} \
+  | jq 'del(.id,.source,.source_type,._links,.created_at,.updated_at,.node_id,.current_user_can_bypass)' \
+  | gh api -X POST repos/$repo/rulesets --input -
+gh api -X PUT repos/$repo/actions/permissions/workflow \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+gh api -X PUT repos/$repo/vulnerability-alerts
 ```
 
 `new` also writes the workflows that open a pull request when upstream publishes a new release,

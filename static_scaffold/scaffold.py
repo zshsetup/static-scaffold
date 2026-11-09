@@ -87,6 +87,7 @@ def render_release(config: Config) -> str:
             "NAME": config.name,
             "MAIN": config.vendor[0].dir,
             "DIRS": config.dirs,
+            "SED": config.upstream_tags.release_sed if config.upstream_tags else "",
         },
     )
     if not config.macos_only:
